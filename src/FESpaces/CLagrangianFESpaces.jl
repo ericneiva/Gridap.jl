@@ -357,4 +357,3 @@ function _fill_cell_dofs_clagrangian!(
     end
   end
 end
-

@@ -73,6 +73,10 @@ function ModalC0RefFE(
     shapefuns)
 end
 
+function get_orders(reffe::GenericRefFE{ModalC0,D}) where{D}
+  get_orders(get_shapefuns(reffe))
+end
+
 function compute_lag_reffe_data(::Type{T},
                                 p::Polytope{D},
                                 order::Int) where {T,D}
@@ -149,6 +153,7 @@ end
 
 function compute_cell_to_modalC0_reffe(
   p::Polytope{D},
+  ncells::Int,
   ::Type{T},
   orders::Union{Integer,NTuple{D,Int}},
   bboxes) where {T,D} # type-stability?
@@ -176,4 +181,25 @@ function compute_cell_to_modalC0_reffe(
 
   reffes = [ reffe(sh(bbs)) for bbs in bboxes ]
   CompressedArray(reffes,1:length(reffes))
+end
+
+function compute_cell_to_modalC0_reffe(
+  p::Polytope{D},
+  ncells::Int,
+  ::Type{T},
+  orders::Union{Integer,NTuple{D,Int}}) where {T,D} # type-stability?
+
+  @notimplementedif ! is_n_cube(p)
+  @notimplementedif minimum(orders) < one(eltype(orders))
+
+  ndofs, predofs, lag_reffe, face_dofs = compute_lag_reffe_data(T,p,orders)
+  reffe = GenericRefFE{ModalC0}(ndofs,
+                                p,
+                                predofs,
+                                GradConformity(),
+                                lag_reffe,
+                                face_dofs,
+                                AgFEMModalC0Basis{D}(T,orders))
+
+  Fill(reffe,ncells)
 end
