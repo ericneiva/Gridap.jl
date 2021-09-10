@@ -227,6 +227,8 @@ end
 
 _q_filter_mc0(e,o) = true
 
+_s_filter_mc0(e,o) = ( sum( [ i for i in e if i>1 ] ) <= o )
+
 _sort_by_tensor_prod!(terms,orders) = terms
 
 function _sort_by_nfaces!(terms::Vector{CartesianIndex{D}},orders) where D
@@ -260,9 +262,19 @@ function _sort_by_nfaces!(terms::Vector{CartesianIndex{D}},orders) where D
   permute!(terms,P)
 end
 
+function _apply_filter!(terms,filter,orders)
+  g = (0 .* orders) .+ 1
+  to = CartesianIndex(g)
+  maxorder = _maximum(orders)
+  term_to_is_fterm = lazy_map(t->filter(Int[Tuple(t-to)...],maxorder),terms)
+  fterm_to_term = findall(term_to_is_fterm)
+  collect(lazy_map(Reindex(terms),fterm_to_term))
+end
+
 function _define_terms_mc0(filter,sort!,orders)
-  terms = _define_terms(filter,orders)
+  terms = _define_terms(_q_filter_mc0,orders)
   sort!(terms,orders)
+  _apply_filter!(terms,filter,orders)
 end
 
 function _legendre(ξ,::Val{N}) where N
