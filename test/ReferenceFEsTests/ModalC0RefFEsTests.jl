@@ -35,8 +35,8 @@ test_reference_fe(m)
 # partition = (2,2)
 # model = CartesianDiscreteModel(domain,partition)
 
-function test_function_interpolation(::Type{T},order,C,u,bboxes) where T
-  reffe = ReferenceFE(modalC0,T,order,bboxes)
+function test_function_interpolation(::Type{T},order,C,u,bboxes,R) where T
+  reffe = ReferenceFE(modalC0,T,order,bboxes,reffe_type=R)
   V = FESpace(model,reffe,conformity=C)
   test_single_field_fe_space(V)
   uh = interpolate(u,V)
@@ -70,7 +70,7 @@ trian = Triangulation(model)
 T = Float64; order = 3; C = :H1; u(x) = x[1]^3
 bboxes = [Point(0.0),Point(1.0),Point(0.0),Point(1.0),Point(-3.0),Point(1.0)]
 bboxes = CellPoint(fill(bboxes,1),trian,PhysicalDomain())
-test_function_interpolation(T,order,C,u,bboxes.cell_ref_point)
+test_function_interpolation(T,order,C,u,bboxes.cell_ref_point,lagrangian)
 
 domain = (0,1)
 partition = (4,)
@@ -81,7 +81,7 @@ bboxes = [ [Point(0.0),Point(1.0),Point(0.0),Point(1.0),Point(-1.0),Point(3.0)],
            [Point(0.0),Point(1.0),Point(0.0),Point(1.0),Point(-1.5),Point(3.2)],
            [Point(0.0),Point(1.0),Point(0.0),Point(1.0),Point(-0.2),Point(1.0)],
            [Point(0.0),Point(1.0),Point(0.0),Point(1.0),Point(-1.2),Point(2.0)] ]
-test_function_interpolation(T,order,C,u,bboxes)
+test_function_interpolation(T,order,C,u,bboxes,lagrangian)
 
 domain = (0,4)
 partition = (4,)
@@ -92,7 +92,7 @@ bboxes = [ [Point(0.0),Point(1.0),Point(0.0),Point(1.0),Point(-1.0),Point(3.0)],
            [Point(0.0),Point(1.0),Point(0.0),Point(1.0),Point(-1.5),Point(3.2)],
            [Point(0.0),Point(1.0),Point(0.0),Point(1.0),Point(-0.2),Point(1.0)],
            [Point(0.0),Point(1.0),Point(0.0),Point(1.0),Point(-1.2),Point(2.0)] ]
-test_function_interpolation(T,order,C,u,bboxes)
+test_function_interpolation(T,order,C,u,bboxes,lagrangian)
 
 domain = (0,1,0,1)
 partition = (2,2,)
@@ -107,7 +107,17 @@ bboxes = reshape( [Point(0.0,0.0),Point(1.0,1.0),Point(0.0,0.0),
                    Point(-1.0,-1.0),Point(-1.0,1.25),Point(-1.0,-1.0),
                    Point(-1.0,1.25),Point(0.0,0.0),Point(1.0,1.0)], 18 )
 bboxes = CellPoint(fill(bboxes,4),trian,PhysicalDomain())
-test_function_interpolation(T,order,C,u,bboxes.cell_ref_point)
+test_function_interpolation(T,order,C,u,bboxes.cell_ref_point,lagrangian)
+
+T = Float64; order = 4; C = :H1; u(x) = (x[1]+x[2])^4
+bboxes = reshape( [Point(0.0,0.0),Point(1.0,1.0),Point(0.0,0.0),
+                   Point(1.0,1.0),Point(0.0,0.0),Point(1.0,1.0),
+                   Point(0.0,0.0),Point(1.0,1.0),Point(-0.5,2.5),
+                   Point(2.5,2.5),Point(-0.5,2.5),Point(2.5,2.5),
+                   Point(-1.0,-1.0),Point(-1.0,1.25),Point(-1.0,-1.0),
+                   Point(-1.0,1.25),Point(0.0,0.0),Point(1.0,1.0)], 18 )
+bboxes = CellPoint(fill(bboxes,4),trian,PhysicalDomain())
+test_function_interpolation(T,order,C,u,bboxes.cell_ref_point,serendipitylagrangian)
 
 # order = 1; T = Float64; C = :L2; u(x) = x[1]+x[2]
 # test_function_interpolation(T,order,C,u)

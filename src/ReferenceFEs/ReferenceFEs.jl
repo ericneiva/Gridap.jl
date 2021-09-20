@@ -32,6 +32,7 @@ import Gridap.Polynomials: MonomialBasis
 
 import Gridap.Polynomials: get_order
 import Gridap.Polynomials: get_orders
+import Gridap.Polynomials: _q_filter_mc0, _s_filter_mc0
 
 import Gridap.Io: to_dict
 import Gridap.Io: from_dict
@@ -177,11 +178,13 @@ export Lagrangian
 export RaviartThomas
 export Nedelec
 export ModalC0
+export SerendipityLagrangian
 
 export lagrangian
 export raviart_thomas
 export nedelec
 export modalC0
+export serendipitylagrangian
 
 export Quadrature
 export QuadratureName

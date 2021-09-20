@@ -26,7 +26,7 @@ println( num_dofs(reffe) )
 function SerendipityRefFE(::Type{T},p::Polytope,order::Int) where T
   @assert is_n_cube(p) "Polytope not compatible with serendipity elements"
   if order > 0
-    sp = SerendipityPolytope(p) 
+    sp = SerendipityPolytope(p)
   else
     sp = p
   end
@@ -92,7 +92,7 @@ function _s_filter(e,order)
 end
 
 function compute_monomial_basis(::Type{T},p::SerendipityPolytope{D},orders) where {T,D}
-  MonomialBasis{D}(T,orders,_s_filter)
+  JacobiPolynomialBasis{D}(T,orders,_s_filter)
 end
 
 function compute_own_nodes(p::SerendipityPolytope{0},orders)
@@ -127,4 +127,3 @@ function compute_face_orders(
   p::SerendipityPolytope{D},face::SerendipityPolytope{N},iface::Int,orders) where {D,N}
   compute_face_orders(p.hex,face.hex,iface,orders)
 end
-

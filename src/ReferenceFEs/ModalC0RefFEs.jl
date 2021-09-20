@@ -2,6 +2,10 @@ struct ModalC0 <: ReferenceFEName end
 
 const modalC0 = ModalC0()
 
+struct SerendipityLagrangian <: ReferenceFEName end
+
+const serendipitylagrangian = SerendipityLagrangian()
+
 """
   ModalC0RefFE(::Type{T},p::Polytope{D},orders) where {T,D}
 
@@ -32,7 +36,7 @@ function ModalC0RefFE(
 
   shapefuns = AgFEMModalC0Basis{D}(T,orders,a,b)
 
-  ndofs, predofs, lag_reffe, face_dofs = compute_lag_reffe_data(T,p,orders)
+  ndofs, predofs, lag_reffe, face_dofs = compute_reffe_data(T,p,orders,lagrangian)
 
   GenericRefFE{ModalC0}(
     ndofs,
@@ -61,7 +65,7 @@ function ModalC0RefFE(
     shapefuns = AgFEMModalC0Basis{D}(T,orders)
   end
 
-  ndofs, predofs, lag_reffe, face_dofs = compute_lag_reffe_data(T,p,orders)
+  ndofs, predofs, lag_reffe, face_dofs = compute_reffe_data(T,p,orders,lagrangian)
 
   GenericRefFE{ModalC0}(
     ndofs,
@@ -77,31 +81,30 @@ function get_orders(reffe::GenericRefFE{ModalC0,D}) where{D}
   get_orders(get_shapefuns(reffe))
 end
 
-function compute_lag_reffe_data(::Type{T},
-                                p::Polytope{D},
-                                order::Int) where {T,D}
-
+function compute_reffe_data(::Type{T},
+                            p::Polytope{D},
+                            order::Int,
+                            name::ReferenceFEName) where {T,D}
   orders = tfill(order,Val{D}())
-  compute_lag_reffe_data(T,p,orders)
+  compute_reffe_data(T,p,orders,name)
 end
 
-function compute_lag_reffe_data(::Type{T},
-                                p::Polytope{D},
-                                orders::NTuple{D,Int}) where {T,D}
+function compute_reffe_data(::Type{T},
+                            p::Polytope{D},
+                            orders::NTuple{D,Int},
+                            ::Lagrangian) where {T,D}
+  lag_reffe = LagrangianRefFE(T,p,orders)
+  reffe = lag_reffe.reffe
+  reffe.ndofs, reffe.dofs, lag_reffe, reffe.face_dofs
+end
 
-  nodes, face_own_nodes = compute_nodes(p,orders)
-  predofs = LagrangianDofBasis(T,nodes)
-  ndofs = length(predofs.dof_to_node)
-
-  nnodes = length(predofs.nodes)
-  reffaces = compute_lagrangian_reffaces(T,p,orders)
-  _reffaces = vcat(reffaces...)
-  face_nodes = _generate_face_nodes(nnodes,face_own_nodes,p,_reffaces)
-  face_own_dofs = _generate_face_own_dofs(face_own_nodes,predofs.node_and_comp_to_dof)
-  face_dofs = _generate_face_dofs(ndofs,face_own_dofs,p,_reffaces)
-
-  lag_reffe = ReferenceFE(p,lagrangian,T,orders)
-  ndofs, predofs, lag_reffe, face_dofs
+function compute_reffe_data(::Type{T},
+                            p::Polytope{D},
+                            orders::NTuple{D,Int},
+                            ::SerendipityLagrangian) where {T,D}
+  lag_reffe = SerendipityRefFE(T,p,orders)
+  reffe = lag_reffe.reffe
+  reffe.ndofs, reffe.dofs, lag_reffe, reffe.face_dofs
 end
 
 function ReferenceFE(
@@ -110,11 +113,10 @@ function ReferenceFE(
   ::Type{T},
   orders::Union{Integer,NTuple{D,Int}};
   kwargs...) where {T,D}
-
   ModalC0RefFE(T,polytope,orders;kwargs...)
 end
 
-function Conformity(reffe::GenericRefFE{ModalC0},sym::Symbol)
+function Conformity(::GenericRefFE{ModalC0},sym::Symbol)
   h1 = (:H1,:C0,:Hgrad)
   if sym == :L2
     L2Conformity()
@@ -156,19 +158,23 @@ function compute_cell_to_modalC0_reffe(
   ncells::Int,
   ::Type{T},
   orders::Union{Integer,NTuple{D,Int}},
-  bboxes) where {T,D} # type-stability?
+  bboxes;
+  reffe_type=lagrangian) where {T,D} # type-stability?
 
   @notimplementedif ! is_n_cube(p)
   @notimplementedif minimum(orders) < one(eltype(orders))
+  @assert ncells == length(bboxes)
 
-  ndofs, predofs, lag_reffe, face_dofs = compute_lag_reffe_data(T,p,orders)
+  ndofs, predofs, lag_reffe, face_dofs = compute_reffe_data(T,p,orders,reffe_type)
   face_own_dofs = get_face_own_dofs(lag_reffe,GradConformity())
+
+  filter = reffe_type == lagrangian ? _q_filter_mc0 : _s_filter_mc0
 
   sh(bbs) = begin
     a = fill(Point{D,eltype(T)}(tfill(zero(eltype(T)),Val{D}())),ndofs)
     b = fill(Point{D,eltype(T)}(tfill(zero(eltype(T)),Val{D}())),ndofs)
     compute_shapefun_bboxes!(a,b,bbs,face_own_dofs)
-    AgFEMModalC0Basis{D}(T,orders,a,b)
+    AgFEMModalC0Basis{D}(T,orders,a,b,filter=filter)
   end
 
   reffe(sh) = GenericRefFE{ModalC0}(ndofs,
@@ -180,26 +186,29 @@ function compute_cell_to_modalC0_reffe(
                                     sh)
 
   reffes = [ reffe(sh(bbs)) for bbs in bboxes ]
-  CompressedArray(reffes,1:length(reffes))
+  CompressedArray(reffes,1:ncells)
 end
 
 function compute_cell_to_modalC0_reffe(
   p::Polytope{D},
   ncells::Int,
   ::Type{T},
-  orders::Union{Integer,NTuple{D,Int}}) where {T,D} # type-stability?
+  orders::Union{Integer,NTuple{D,Int}};
+  reffe_type=lagrangian) where {T,D} # type-stability?
 
   @notimplementedif ! is_n_cube(p)
   @notimplementedif minimum(orders) < one(eltype(orders))
 
-  ndofs, predofs, lag_reffe, face_dofs = compute_lag_reffe_data(T,p,orders)
+  filter = reffe_type == lagrangian ? _q_filter_mc0 : _s_filter_mc0
+
+  ndofs, predofs, lag_reffe, face_dofs = compute_reffe_data(T,p,orders,reffe_type)
   reffe = GenericRefFE{ModalC0}(ndofs,
                                 p,
                                 predofs,
                                 GradConformity(),
                                 lag_reffe,
                                 face_dofs,
-                                AgFEMModalC0Basis{D}(T,orders))
+                                AgFEMModalC0Basis{D}(T,orders,filter=filter))
 
   Fill(reffe,ncells)
 end
