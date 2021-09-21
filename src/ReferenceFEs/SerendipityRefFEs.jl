@@ -91,20 +91,6 @@ function compute_monomial_basis(::Type{T},p::SerendipityPolytope{D},orders) wher
   JacobiPolynomialBasis{D}(T,orders,_s_filter_mc0)
 end
 
-function compute_nodes(p::SerendipityPolytope{D},orders) where D
-  nodes, facenodes = _compute_nodes(p,orders)
-  if any( orders .> 3 ) && is_n_cube(p)
-    terms = _define_terms(_q_filter_mc0,orders)
-    _sort_by_nfaces!(terms,orders)
-    quad = Quadrature( p.hex, gauss_lobatto, 2 .* orders )
-    _nodes = quad.coordinates
-    sort_nodes_by_nfaces!(_nodes,orders)
-    mask = _compute_filter_mask(terms,_s_filter_mc0,orders)
-    nodes = collect(lazy_map(Reindex(_nodes),mask))
-  end
-  nodes, facenodes
-end
-
 function compute_own_nodes(p::SerendipityPolytope{0},orders)
   compute_own_nodes(p.hex,orders)
 end
