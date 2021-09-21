@@ -105,10 +105,8 @@ function _compute_own_s_nodes(orders)
   _terms = _define_terms(_q_filter_mc0,orders)
   _sort_by_nfaces!(_terms,orders)
   mask = _compute_filter_mask(_terms,_own_s_filter_mc0,orders)
-  own_terms = lazy_map(Reindex(_terms),mask)
-  g = (0 .* orders) .+ 1
-  to = CartesianIndex(g)
-  terms = map(t->CartesianIndex(Tuple(t-to)),own_terms)
+  _terms = lazy_map(Reindex(_terms),mask)
+  terms = map(t->CartesianIndex(Tuple(t)),_terms)
   _terms_to_coords(terms,orders)
 end
 
