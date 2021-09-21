@@ -109,7 +109,7 @@ bboxes = reshape( [Point(0.0,0.0),Point(1.0,1.0),Point(0.0,0.0),
 bboxes = CellPoint(fill(bboxes,4),trian,PhysicalDomain())
 test_function_interpolation(T,order,C,u,bboxes.cell_ref_point,lagrangian)
 
-T = Float64; order = 4; C = :H1; u(x) = (x[1]+x[2])^4
+T = Float64; order = 5; C = :H1; u(x) = (x[1]+x[2])^5
 bboxes = reshape( [Point(0.0,0.0),Point(1.0,1.0),Point(0.0,0.0),
                    Point(1.0,1.0),Point(0.0,0.0),Point(1.0,1.0),
                    Point(0.0,0.0),Point(1.0,1.0),Point(-0.5,2.5),

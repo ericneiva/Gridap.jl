@@ -87,12 +87,22 @@ get_extrusion(p::SerendipityPolytope{D}) where D = Point(tfill(HEX_AXIS,Val{D}()
 
 # Implemented polytope interface for LagrangianRefFEs
 
-function _s_filter(e,order)
-  sum( [ i for i in e if i>1 ] ) <= order
+function compute_monomial_basis(::Type{T},p::SerendipityPolytope{D},orders) where {T,D}
+  JacobiPolynomialBasis{D}(T,orders,_s_filter_mc0)
 end
 
-function compute_monomial_basis(::Type{T},p::SerendipityPolytope{D},orders) where {T,D}
-  JacobiPolynomialBasis{D}(T,orders,_s_filter)
+function compute_nodes(p::SerendipityPolytope{D},orders) where D
+  nodes, facenodes = _compute_nodes(p,orders)
+  if any( orders .> 3 ) && is_n_cube(p)
+    terms = _define_terms(_q_filter_mc0,orders)
+    _sort_by_nfaces!(terms,orders)
+    quad = Quadrature( p.hex, gauss_lobatto, 2 .* orders )
+    _nodes = quad.coordinates
+    sort_nodes_by_nfaces!(_nodes,orders)
+    mask = _compute_filter_mask(terms,_s_filter_mc0,orders)
+    nodes = collect(lazy_map(Reindex(_nodes),mask))
+  end
+  nodes, facenodes
 end
 
 function compute_own_nodes(p::SerendipityPolytope{0},orders)
@@ -103,24 +113,21 @@ function compute_own_nodes(p::SerendipityPolytope{1},orders)
   compute_own_nodes(p.hex,orders)
 end
 
-function compute_own_nodes(p::SerendipityPolytope{2},orders)
-  order, = orders
-  if order == 4
-    o = (2,2)
-  elseif order in (0,1,2,3)
-    o=(1,1)
-  else
-    @unreachable "Serendipity elements only up to order 4"
-  end
-  compute_own_nodes(p.hex,o)
-end
+_own_s_filter_mc0(e,o) = ( sum( [ i for i in e ] ) <= o && all( [ i > 1 for i in e ] ) )
 
-function compute_own_nodes(p::SerendipityPolytope{3},orders)
-  Point{3,Float64}[]
+function _compute_own_s_nodes(orders)
+  _terms = _define_terms(_q_filter_mc0,orders)
+  _sort_by_nfaces!(_terms,orders)
+  mask = _compute_filter_mask(_terms,_own_s_filter_mc0,orders)
+  own_terms = lazy_map(Reindex(_terms),mask)
+  g = (0 .* orders) .+ 1
+  to = CartesianIndex(g)
+  terms = map(t->CartesianIndex(Tuple(t-to)),own_terms)
+  _terms_to_coords(terms,orders)
 end
 
 function compute_own_nodes(p::SerendipityPolytope,orders)
-  @unreachable "Serendipity elements only up to 3d"
+  _compute_own_s_nodes(orders)
 end
 
 function compute_face_orders(

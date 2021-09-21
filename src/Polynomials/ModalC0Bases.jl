@@ -262,19 +262,19 @@ function _sort_by_nfaces!(terms::Vector{CartesianIndex{D}},orders) where D
   permute!(terms,P)
 end
 
-function _apply_filter!(terms,filter,orders)
+function _compute_filter_mask(terms,filter,orders)
   g = (0 .* orders) .+ 1
   to = CartesianIndex(g)
   maxorder = _maximum(orders)
   term_to_is_fterm = lazy_map(t->filter(Int[Tuple(t-to)...],maxorder),terms)
-  fterm_to_term = findall(term_to_is_fterm)
-  collect(lazy_map(Reindex(terms),fterm_to_term))
+  findall(term_to_is_fterm)
 end
 
 function _define_terms_mc0(filter,sort!,orders)
   terms = _define_terms(_q_filter_mc0,orders)
   sort!(terms,orders)
-  _apply_filter!(terms,filter,orders)
+  mask = _compute_filter_mask(terms,filter,orders)
+  collect(lazy_map(Reindex(terms),mask))
 end
 
 function _legendre(ξ,::Val{N}) where N
