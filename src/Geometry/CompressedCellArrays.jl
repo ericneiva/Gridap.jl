@@ -60,11 +60,16 @@ end
 
 struct CombineContributionsMap{A} <: Map
   scell_to_val::A
+  array_cache
+  function CombineContributionsMap(scell_to_val::A) where {A}
+    c = array_cache(scell_to_val)
+    new{A}(scell_to_val,c)
+  end
 end
 
 function return_cache(k::CombineContributionsMap{<:AbstractArray{<:Number}},scells)
   z = zero(testitem(k.scell_to_val))
-  z, array_cache(k.scell_to_val)
+  z, k.array_cache
 end
 
 function evaluate!(cache,k::CombineContributionsMap{<:AbstractArray{<:Number}},scells)
@@ -79,7 +84,7 @@ end
 function return_cache(k::CombineContributionsMap,scells)
   array = testitem(k.scell_to_val)
   c12 = _cache_compress(array)
-  c = array_cache(k.scell_to_val)
+  c = k.array_cache
   c12, c
 end
 
