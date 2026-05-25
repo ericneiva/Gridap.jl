@@ -200,13 +200,21 @@ struct GenericField{T} <: Field
   object::T
 end
 
-#Field(f) = GenericField(f)
 GenericField(f::Field) = f
 
 testargs(a::GenericField,x::Point) = testargs(a.object,x)
 return_value(a::GenericField,x::Point) = return_value(a.object,x)
 return_cache(a::GenericField,x::Point) = return_cache(a.object,x)
 evaluate!(cache,a::GenericField,x::Point) = evaluate!(cache,a.object,x)
+
+function testvalue(::Type{GenericField{T}}) where T
+  if hasproperty(T,:instance)
+    # This is because typeof(function) does not have a singleton constructor O()
+    GenericField(T.instance)
+  else
+    GenericField(T())
+  end :: GenericField{T}
+end
 
 function return_cache(f::FieldGradient{N,<:GenericField},x::Point) where N
   return_cache(FieldGradient{N}(f.object.object),x)
@@ -386,46 +394,38 @@ end
 
 function return_value(c::OperationField,x::Point)
   fx = map(f -> return_value(f,x),c.fields)
-  return_value(c.op,fx...)
+  return return_value(c.op,fx...)
 end
 
 function return_cache(c::OperationField,x::Point)
   cl = map(fi -> return_cache(fi,x),c.fields)
   lx = map(fi -> return_value(fi,x),c.fields)
   ck = return_cache(c.op,lx...)
-  ck, cl
+  return ck, cl
 end
 
 function evaluate!(cache,c::OperationField,x::Point)
   ck, cf = cache
   lx = map((ci,fi) -> evaluate!(ci,fi,x),cf,c.fields)
-  evaluate!(ck,c.op,lx...)
+  return evaluate!(ck,c.op,lx...)
 end
 
 function return_value(c::OperationField,x::AbstractArray{<:Point})
   fx = map(f -> return_value(f,x),c.fields)
-  c.op.(fx...)
+  return return_value(Broadcasting(c.op),fx...)
 end
 
 function return_cache(c::OperationField,x::AbstractArray{<:Point})
   cf = map(fi -> return_cache(fi,x),c.fields)
   lx = map((ci,fi) -> evaluate!(ci,fi,x),cf,c.fields)
-  ck = return_cache(c.op,map(testitem,lx)...)
-  r = c.op.(lx...)
-  ca = CachedArray(r)
-  ca, ck, cf
+  ck = return_cache(Broadcasting(c.op),lx...)
+  return cf, ck
 end
 
 function evaluate!(cache,c::OperationField,x::AbstractArray{<:Point})
-  ca, ck, cf = cache
-  sx = size(x)
-  setsize!(ca,sx)
+  cf, ck = cache
   lx = map((ci,fi) -> evaluate!(ci,fi,x),cf,c.fields)
-  r = ca.array
-  for i in eachindex(x)
-    @inbounds r[i] = evaluate!(ck,c.op,map(lxi -> lxi[i], lx)...)
-  end
-  r
+  return evaluate!(ck,Broadcasting(c.op),lx...)
 end
 
 evaluate!(cache,op::Operation,x::Field...) = OperationField(op.op,x)
@@ -626,6 +626,7 @@ vectorized discrete quadratures.
 """
 struct IntegrationMap <: Map end
 
+<<<<<<< HEAD
 function return_value(k::IntegrationMap,ax::AbstractVector,w)
   if size(ax,1) == length(w)
     evaluate(k,ax,w)
@@ -637,17 +638,42 @@ end
 
 function evaluate!(cache,k::IntegrationMap,ax::AbstractVector,w)
   T = typeof( testitem(ax)*testitem(w) + testitem(ax)*testitem(w) )
+=======
+@inline function integrate_eltype(aq,w)
+  T = Base.promote_op(*,eltype(aq),eltype(w))
+  TT = Base.promote_op(+,T,T)
+  @check isconcretetype(TT) "integrate_eltype($(eltype(aq)), $(eltype(w))) is not concrete."
+  return TT
+end
+@inline function integrate_eltype(aq,w,jq)
+  T1 = Base.promote_op(*,eltype(aq),eltype(w))
+  Tj = Base.promote_op(meas,eltype(jq))
+  T2 = Base.promote_op(*,T1,Tj)
+  TT = Base.promote_op(+,T2,T2)
+  @check isconcretetype(TT) "integrate_eltype($(eltype(aq)), $(eltype(w)), $(eltype(jq))) is not concrete."
+  return TT
+end
+
+return_value(::IntegrationMap,aq::AbstractVector,w) = zero(integrate_eltype(aq,w))
+return_cache(::IntegrationMap,aq::AbstractVector,w) = nothing
+
+function evaluate!(cache,k::IntegrationMap,aq::AbstractVector,w)
+  T = integrate_eltype(aq,w)
+>>>>>>> e8e64da97538e419bac11749b645aa64982282eb
   z = zero(T)
   r = z
-  @check length(ax) == length(w)
-  @inbounds for i in eachindex(ax)
-    r += ax[i]*w[i]
+  @check length(aq) == length(w)
+  @inbounds for i in eachindex(aq)
+    r += aq[i]*w[i]
   end
   r
 end
 
+return_value(::IntegrationMap,aq::AbstractVector,w,jq::AbstractVector) = zero(integrate_eltype(aq,w,jq))
+return_cache(::IntegrationMap,aq::AbstractVector,w,jq::AbstractVector) = nothing
+
 function evaluate!(cache,k::IntegrationMap,aq::AbstractVector,w,jq::AbstractVector)
-  T = typeof( testitem(aq)*testitem(w)*meas(testitem(jq)) + testitem(aq)*testitem(w)*meas(testitem(jq)) )
+  T = integrate_eltype(aq,w,jq)
   z = zero(T)
   @check length(aq) == length(w)
   @check length(aq) == length(jq)
@@ -657,29 +683,25 @@ function evaluate!(cache,k::IntegrationMap,aq::AbstractVector,w,jq::AbstractVect
   z
 end
 
-function return_value(k::IntegrationMap,ax::AbstractArray,w)
-  if size(ax,1) == length(w)
-    evaluate(k,ax,w)
-  else
-    c = return_cache(k,ax,w)
-    c.array
-  end
+function return_value(::IntegrationMap,aq::AbstractArray,w)
+  T = integrate_eltype(aq,w)
+  return zeros(T,size(aq)[2:end])
 end
 
-function return_cache(k::IntegrationMap,ax::AbstractArray,w)
-  T = typeof( testitem(ax)*testitem(w) + testitem(ax)*testitem(w) )
-  r = zeros(T,size(ax)[2:end])
+function return_cache(k::IntegrationMap,aq::AbstractArray,w)
+  T = integrate_eltype(aq,w)
+  r = zeros(T,size(aq)[2:end])
   CachedArray(r)
 end
 
-function evaluate!(cache,k::IntegrationMap,ax::AbstractArray,w)
-  setsize!(cache,size(ax)[2:end])
+function evaluate!(cache,k::IntegrationMap,aq::AbstractArray,w)
+  setsize!(cache,size(aq)[2:end])
   r = cache.array
-  @check size(ax,1) == length(w)
+  @check size(aq,1) == length(w)
   @inbounds for j in CartesianIndices(r)
     rj = zero(eltype(r))
     for p in 1:length(w)
-      rj += ax[p,j]*w[p]
+      rj += aq[p,j]*w[p]
     end
     r[j] = rj
   end
@@ -687,16 +709,12 @@ function evaluate!(cache,k::IntegrationMap,ax::AbstractArray,w)
 end
 
 function return_value(k::IntegrationMap,aq::AbstractArray,w,jq::AbstractVector)
-  if size(aq,1) == length(w) && size(aq,1) == length(jq)
-    evaluate(k,aq,w,jq)
-  else
-    c = return_cache(k,aq,w,jq)
-    c.array
-  end
+  T = integrate_eltype(aq,w,jq)
+  return zeros(T,size(aq)[2:end])
 end
 
 function return_cache(k::IntegrationMap,aq::AbstractArray,w,jq::AbstractVector)
-  T = typeof( testitem(aq)*testitem(w)*meas(testitem(jq)) + testitem(aq)*testitem(w)*meas(testitem(jq)) )
+  T = integrate_eltype(aq,w,jq)
   r = zeros(T,size(aq)[2:end])
   CachedArray(r)
 end
@@ -718,13 +736,13 @@ function evaluate!(cache,k::IntegrationMap,aq::AbstractArray,w,jq::AbstractVecto
 end
 
 function return_value(k::IntegrationMap,aq::AbstractArray{S,3} where S,w,jq::AbstractVector)
-  T = typeof( testitem(aq)*testitem(w)*meas(testitem(jq)) + testitem(aq)*testitem(w)*meas(testitem(jq)) )
+  T = integrate_eltype(aq,w,jq)
   r = zeros(T,size(aq)[2:end])
   r
 end
 
 function return_cache(k::IntegrationMap,aq::AbstractArray{S,3} where S,w,jq::AbstractVector)
-  T = typeof( testitem(aq)*testitem(w)*meas(testitem(jq)) + testitem(aq)*testitem(w)*meas(testitem(jq)) )
+  T = integrate_eltype(aq,w,jq)
   r = zeros(T,size(aq)[2:end])
   s = zeros(typeof(meas(testitem(jq))),length(jq))
   CachedArray(r), CachedArray(s)
@@ -816,6 +834,10 @@ struct VoidField{F} <: Field
   isvoid::Bool
 end
 
+function return_value(f::VoidField,x::Point)
+  return_value(f.field,x)
+end
+
 function return_cache(f::VoidField,x::Point)
   c = return_cache(f.field,x)
   fx = evaluate!(c,f.field,x)
@@ -829,6 +851,10 @@ function evaluate!(cache,f::VoidField,x::Point)
   else
     evaluate!(c,f.field,x)
   end
+end
+
+function return_value(f::VoidField,x::AbstractVector{<:Point})
+  return_value(f.field,x)
 end
 
 function return_cache(f::VoidField,x::AbstractVector{<:Point})
@@ -913,6 +939,12 @@ function _zero_size(a::VoidBasis{T,2} where T)
   (1,0)
 end
 
+function return_value(a::VoidBasis,x::Point)
+  bx = return_value(a.basis,x)
+  zs = _zero_size(a)
+  similar(bx,zs)
+end
+
 function Fields.return_cache(a::VoidBasis,x::Point)
   cb = return_cache(a.basis,x)
   bx = return_value(a.basis,x)
@@ -927,6 +959,12 @@ function Fields.return_cache(a::VoidBasis,x::Field)
   bx = return_value(a.basis,x)
   r = similar(bx,(0,))
   cb,r
+end
+
+function return_value(a::VoidBasis,x::AbstractVector{<:Point})
+  bx = return_value(a.basis,x)
+  zs = _zero_size(a)
+  similar(bx,(length(x),zs...))
 end
 
 function Fields.return_cache(a::VoidBasis,x::AbstractVector{<:Point})
