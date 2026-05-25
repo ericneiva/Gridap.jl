@@ -626,19 +626,6 @@ vectorized discrete quadratures.
 """
 struct IntegrationMap <: Map end
 
-<<<<<<< HEAD
-function return_value(k::IntegrationMap,ax::AbstractVector,w)
-  if size(ax,1) == length(w)
-    evaluate(k,ax,w)
-  else
-    T = typeof( testitem(ax)*testitem(w) + testitem(ax)*testitem(w) )
-    zero(T)
-  end
-end
-
-function evaluate!(cache,k::IntegrationMap,ax::AbstractVector,w)
-  T = typeof( testitem(ax)*testitem(w) + testitem(ax)*testitem(w) )
-=======
 @inline function integrate_eltype(aq,w)
   T = Base.promote_op(*,eltype(aq),eltype(w))
   TT = Base.promote_op(+,T,T)
@@ -659,7 +646,6 @@ return_cache(::IntegrationMap,aq::AbstractVector,w) = nothing
 
 function evaluate!(cache,k::IntegrationMap,aq::AbstractVector,w)
   T = integrate_eltype(aq,w)
->>>>>>> e8e64da97538e419bac11749b645aa64982282eb
   z = zero(T)
   r = z
   @check length(aq) == length(w)
